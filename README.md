@@ -35,7 +35,7 @@ The language supports variables, functions, control structures, namespaces, and 
 
 ### Interpreter Features
 - **Interactive REPL**: Read-Eval-Print Loop for interactive development
-- **File Execution**: Run SharpScript files with `.sharp` extension
+- **File Execution**: Run SharpScript files with `.sps` extension
 - **Memory Management**: Automatic memory allocation and cleanup
 - **Error Reporting**: Detailed error messages with line information
 - **Cross-Platform**: Designed for Windows 10/11 with MinGW32
@@ -349,5 +349,6 @@ For questions, issues, or contributions:
 - Review test files in the `tests/` directory for usage examples
 
 ---
+
 
 **SharpScript** - A modern scripting language with simplicity and power combined.
