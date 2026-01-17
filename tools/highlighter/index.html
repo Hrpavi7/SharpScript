@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SharpScript Syntax Highlighter Demo</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+    }
+
+    pre {
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #f7f7f7;
+    }
+  </style>
+</head>
+<body>
+  <h1>SharpScript Syntax Highlighter Demo</h1>
+  <p>Custom highlight.js language definition for SharpScript.</p>
+
+  <pre><code class="language-sharpscript">
+&insert x = 5;
+
+function main(void)
+{
+  system.output(x);
+  if (x > 3) {
+    system.warning("x is large");
+  } else {
+    system.error("x too small");
+  }
+}
+  </code></pre>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="./sharpscript.js"></script>
+  <script>hljs.highlightAll();</script>
+</body>
+<html>
