@@ -1,6 +1,6 @@
 # SharpScript math library
 # Usage:
-#   #include "lib/math.h"
+#   #involve "lib/math.h"
 #   system.output(clamp(5, 1, 3));
 #   system.output(sum([1,2,3]));
 #   system.output(avg([2,4]));
