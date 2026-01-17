@@ -1,6 +1,6 @@
 # SharpScript stdio library
 # Usage:
-#   #include "lib/stdio.h"
+#   #involve "lib/stdio.h"
 #   println("Hello"); print("World");
 
 function print(x)
