@@ -1,0 +1,11 @@
+# editor folder n' files
+.vscode/
+
+# build folders
+bin/
+obj/
+*.exe
+*.o
+
+# other
+TODO.md
