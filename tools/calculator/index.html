@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SharpScript Calculator</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1 data-i18n="title">Calculator</h1>
+      <div class="controls">
+        <select id="lang">
+          <option value="en">English</option>
+          <option value="es">Español</option>
+        </select>
+        <select id="theme">
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+    </header>
+    <main class="main">
+      <div class="input-area">
+        <input id="expr" type="text" placeholder="e.g., 2+3, sin(0), convert 1 km to m">
+        <ul id="suggestions"></ul>
+      </div>
+      <div class="buttons">
+        <button id="compute" data-i18n="compute">Compute</button>
+        <button id="store" data-i18n="store">Store</button>
+        <button id="recall" data-i18n="recall">Recall</button>
+        <button id="clear" data-i18n="clear">Clear</button>
+      </div>
+      <div class="result">
+        <div id="output"></div>
+      </div>
+      <section class="history">
+        <h2 data-i18n="history">History</h2>
+        <ul id="history"></ul>
+      </section>
+      <section class="code">
+        <h2 data-i18n="preview">Syntax Preview</h2>
+        <pre><code class="language-sharpscript" id="code-preview"></code></pre>
+      </section>
+    </main>
+    <footer class="footer">
+      <span data-i18n="shortcuts">Shortcuts: Enter=Compute, Ctrl+M=Store, Ctrl+R=Recall, Ctrl+H=Toggle History</span>
+    </footer>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="../highlighter/sharpscript.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
