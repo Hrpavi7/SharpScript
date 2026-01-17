@@ -1,0 +1,2 @@
+&insert x = 5;
+system.output(x);
