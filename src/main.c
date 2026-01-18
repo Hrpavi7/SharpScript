@@ -5,11 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
-    the only reason i cant put comments in the top of the includes is
-    cuz the goddamn compiler keeps yelling at me
-    and it takes up 2 gb on my pCAcah a dha 
-*/
+// how to tell the compiler to shut up?
 
 char *read_file(const char *filename)
 {
@@ -34,7 +30,7 @@ char *read_file(const char *filename)
 
 void show_help(void)
 {
-    // printf("die")
+    // help commands
     printf("SharpScript Language Environment\n");
     printf("Usage:\n");
     printf("  sharpscript            - Starts the interactive REPL\n");
@@ -125,5 +121,5 @@ int main(int argc, char* argv[]) {
     // never knew why compilers do this error but i kinda like it
     fprintf(stderr, "Error: Too many arguments.\n");
     show_help();
-    return 1; // returns one "i use arch linux btw"
+    return 1;
 }
