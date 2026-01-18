@@ -66,6 +66,7 @@ ASTNode *ast_create_assign(const char *name, ASTNode *value, TokenType op)
     node->data.assign.name = memory_strdup(name);
     node->data.assign.value = value;
     node->data.assign.op = op;
+    node->data.assign.type_name = NULL;
     return node;
 }
 
@@ -106,6 +107,7 @@ ASTNode *ast_create_function(const char *name, char **params, int param_count, A
     node->data.function.name = memory_strdup(name);
     node->data.function.params = params;
     node->data.function.param_count = param_count;
+    node->data.function.defaults = NULL;
     node->data.function.body = body;
     return node;
 }
@@ -196,6 +198,59 @@ ASTNode *ast_create_class(const char *name, const char *base, ASTNode *body)
     node->data.class_decl.name = memory_strdup(name);
     node->data.class_decl.base = base ? memory_strdup(base) : NULL;
     node->data.class_decl.body = body;
+    return node;
+}
+
+ASTNode *ast_create_map(ASTNode **keys, ASTNode **values, int count)
+{
+    ASTNode *node = memory_allocate(sizeof(ASTNode));
+    node->type = AST_MAP;
+    node->data.map_expr.keys = keys;
+    node->data.map_expr.values = values;
+    node->data.map_expr.count = count;
+    return node;
+}
+
+ASTNode *ast_create_lambda(char **params, int param_count, ASTNode *body)
+{
+    ASTNode *node = memory_allocate(sizeof(ASTNode));
+    node->type = AST_LAMBDA;
+    node->data.lambda.params = params;
+    node->data.lambda.param_count = param_count;
+    node->data.lambda.body = body;
+    return node;
+}
+
+ASTNode *ast_create_match(ASTNode *expr, ASTNode **cases, ASTNode **bodies, int case_count, ASTNode *default_case)
+{
+    ASTNode *node = memory_allocate(sizeof(ASTNode));
+    node->type = AST_MATCH;
+    node->data.match_stmt.expr = expr;
+    node->data.match_stmt.cases = cases;
+    node->data.match_stmt.bodies = bodies;
+    node->data.match_stmt.case_count = case_count;
+    node->data.match_stmt.default_case = default_case;
+    return node;
+}
+
+ASTNode *ast_create_try_catch(ASTNode *try_block, const char *error_var, ASTNode *catch_block, ASTNode *finally_block)
+{
+    ASTNode *node = memory_allocate(sizeof(ASTNode));
+    node->type = AST_TRY_CATCH;
+    node->data.try_stmt.try_block = try_block;
+    node->data.try_stmt.error_var = error_var ? memory_strdup(error_var) : NULL;
+    node->data.try_stmt.catch_block = catch_block;
+    node->data.try_stmt.finally_block = finally_block;
+    return node;
+}
+
+ASTNode *ast_create_for_in(const char *var, ASTNode *collection, ASTNode *body)
+{
+    ASTNode *node = memory_allocate(sizeof(ASTNode));
+    node->type = AST_FOR_IN;
+    node->data.for_in.var = memory_strdup(var);
+    node->data.for_in.collection = collection;
+    node->data.for_in.body = body;
     return node;
 }
 
@@ -294,6 +349,43 @@ void ast_free(ASTNode *node)
         if (node->data.class_decl.base)
             memory_free(node->data.class_decl.base);
         ast_free(node->data.class_decl.body);
+        break;
+    case AST_MAP:
+        for (int i = 0; i < node->data.map_expr.count; i++) {
+            ast_free(node->data.map_expr.keys[i]);
+            ast_free(node->data.map_expr.values[i]);
+        }
+        memory_free(node->data.map_expr.keys);
+        memory_free(node->data.map_expr.values);
+        break;
+    case AST_LAMBDA:
+        for (int i = 0; i < node->data.lambda.param_count; i++) {
+            memory_free(node->data.lambda.params[i]);
+        }
+        memory_free(node->data.lambda.params);
+        ast_free(node->data.lambda.body);
+        break;
+    case AST_MATCH:
+        ast_free(node->data.match_stmt.expr);
+        for (int i = 0; i < node->data.match_stmt.case_count; i++) {
+            ast_free(node->data.match_stmt.cases[i]);
+            ast_free(node->data.match_stmt.bodies[i]);
+        }
+        memory_free(node->data.match_stmt.cases);
+        memory_free(node->data.match_stmt.bodies);
+        if (node->data.match_stmt.default_case)
+            ast_free(node->data.match_stmt.default_case);
+        break;
+    case AST_TRY_CATCH:
+        ast_free(node->data.try_stmt.try_block);
+        if (node->data.try_stmt.error_var) memory_free(node->data.try_stmt.error_var);
+        if (node->data.try_stmt.catch_block) ast_free(node->data.try_stmt.catch_block);
+        if (node->data.try_stmt.finally_block) ast_free(node->data.try_stmt.finally_block);
+        break;
+    case AST_FOR_IN:
+        memory_free(node->data.for_in.var);
+        ast_free(node->data.for_in.collection);
+        ast_free(node->data.for_in.body);
         break;
     default:
         break;
