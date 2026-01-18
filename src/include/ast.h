@@ -29,7 +29,12 @@ typedef enum
     AST_INDEX,
     AST_NAMESPACE,
     AST_ENUM,
-    AST_CLASS
+    AST_CLASS,
+    AST_MAP,
+    AST_LAMBDA,
+    AST_MATCH,
+    AST_TRY_CATCH,
+    AST_FOR_IN
 } ASTNodeType;
 
 typedef struct ASTNode
@@ -69,6 +74,7 @@ typedef struct ASTNode
             char *name;
             struct ASTNode *value;
             TokenType op;
+            char *type_name;
         } assign;
         struct
         {
@@ -93,6 +99,7 @@ typedef struct ASTNode
             char *name;
             char **params;
             int param_count;
+            struct ASTNode **defaults;
             struct ASTNode *body;
         } function;
         struct
@@ -138,6 +145,39 @@ typedef struct ASTNode
             char *base;
             struct ASTNode *body;
         } class_decl;
+        struct
+        {
+            struct ASTNode **keys;
+            struct ASTNode **values;
+            int count;
+        } map_expr;
+        struct
+        {
+            char **params;
+            int param_count;
+            struct ASTNode *body;
+        } lambda;
+        struct
+        {
+            struct ASTNode *expr;
+            struct ASTNode **cases;  // Expressions to match
+            struct ASTNode **bodies; // Blocks to execute
+            int case_count;
+            struct ASTNode *default_case;
+        } match_stmt;
+        struct
+        {
+            struct ASTNode *try_block;
+            char *error_var;
+            struct ASTNode *catch_block;
+            struct ASTNode *finally_block;
+        } try_stmt;
+        struct
+        {
+            char *var;
+            struct ASTNode *collection;
+            struct ASTNode *body;
+        } for_in;
     } data;
 } ASTNode;
 
@@ -163,6 +203,11 @@ ASTNode *ast_create_index(ASTNode *object, ASTNode *index);
 ASTNode *ast_create_namespace(const char *name, ASTNode *body);
 ASTNode *ast_create_enum(const char *name, char **members, double *values, int count);
 ASTNode *ast_create_class(const char *name, const char *base, ASTNode *body);
+ASTNode *ast_create_map(ASTNode **keys, ASTNode **values, int count);
+ASTNode *ast_create_lambda(char **params, int param_count, ASTNode *body);
+ASTNode *ast_create_match(ASTNode *expr, ASTNode **cases, ASTNode **bodies, int case_count, ASTNode *default_case);
+ASTNode *ast_create_try_catch(ASTNode *try_block, const char *error_var, ASTNode *catch_block, ASTNode *finally_block);
+ASTNode *ast_create_for_in(const char *var, ASTNode *collection, ASTNode *body);
 
 void ast_free(ASTNode *node);
 
