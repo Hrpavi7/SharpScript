@@ -74,6 +74,14 @@ typedef enum
     TOKEN_FALSE,
     TOKEN_NULL,
     TOKEN_INCLUDE,
+    TOKEN_INVOLVE,
+    TOKEN_MATCH,
+    TOKEN_CASE,
+    TOKEN_DEFAULT,
+    TOKEN_TRY,
+    TOKEN_CATCH,
+    TOKEN_FINALLY,
+    TOKEN_IN,
     TOKEN_EOF,
     TOKEN_ERROR
 } TokenType;
