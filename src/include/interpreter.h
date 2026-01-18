@@ -3,6 +3,7 @@
 
 #include "ast.h"
 #include "memory.h"
+#include <setjmp.h>
 
 typedef enum
 {
@@ -16,9 +17,11 @@ typedef enum
     VAL_NAMESPACE,
     VAL_CLASS,
     VAL_ENUM,
+    VAL_MAP,
     VAL_BREAK,
     VAL_CONTINUE,
-    VAL_RETURN
+    VAL_RETURN,
+    VAL_ERROR
 } ValueType;
 
 typedef struct Value
@@ -29,6 +32,12 @@ typedef struct Value
         double number;
         char *string;
         int boolean;
+        struct
+        {
+            char *name;
+            char *message;
+            int code;
+        } error;
         struct
         {
             ASTNode *function;
@@ -62,6 +71,13 @@ typedef struct Value
         } enumv;
         struct
         {
+            char **keys;
+            struct Value **values;
+            int count;
+            int capacity;
+        } map;
+        struct
+        {
             struct Value *value;
         } return_val;
     } data;
@@ -72,6 +88,7 @@ typedef struct Environment
     char **names;
     Value **values;
     int *is_const;
+    char **types;
     int count;
     int capacity;
     struct Environment *parent;
@@ -81,6 +98,8 @@ typedef struct
 {
     Environment *global;
     Environment *current;
+    jmp_buf jmp_buf;
+    Value *current_error;
 } Interpreter;
 
 Interpreter *interpreter_create(void);
@@ -88,5 +107,6 @@ void interpreter_free(Interpreter *interp);
 Value *interpreter_eval(Interpreter *interp, ASTNode *node);
 void value_free(Value *val);
 void env_declare(Environment *env, const char *name, Value *value, int is_const);
+void throw_error(Interpreter *interp, Value *error);
 
 #endif // INTERPRETER_H
