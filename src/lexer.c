@@ -1,9 +1,6 @@
 #include "include/lexer.h"
 #include "include/memory.h"
 
-// JDADH AWU DHAKU DHAW DH aaaaaAAAA
-// noice
-
 Lexer *lexer_create(const char *source)
 {
     Lexer *lexer = malloc(sizeof(Lexer));
@@ -67,6 +64,15 @@ static void lexer_skip_comment(Lexer *lexer)
         int pos = lexer->position;
         const char *kw = "#include";
         int i = 0;
+        while (kw[i] && (pos + i) < lexer->length && lexer->source[pos + i] == kw[i]) i++;
+        if (i == 8)
+        {
+            return;
+        }
+        
+        // check for #involve
+        kw = "#involve";
+        i = 0;
         while (kw[i] && (pos + i) < lexer->length && lexer->source[pos + i] == kw[i]) i++;
         if (i == 8)
         {
@@ -219,6 +225,20 @@ static Token *lexer_read_identifier(Lexer *lexer)
         type = TOKEN_STRUCT;
     else if (strcmp(value, "new") == 0)
         type = TOKEN_NEW;
+    else if (strcmp(value, "match") == 0)
+        type = TOKEN_MATCH;
+    else if (strcmp(value, "case") == 0)
+        type = TOKEN_CASE;
+    else if (strcmp(value, "default") == 0)
+        type = TOKEN_DEFAULT;
+    else if (strcmp(value, "try") == 0)
+        type = TOKEN_TRY;
+    else if (strcmp(value, "catch") == 0)
+        type = TOKEN_CATCH;
+    else if (strcmp(value, "finally") == 0)
+        type = TOKEN_FINALLY;
+    else if (strcmp(value, "in") == 0)
+        type = TOKEN_IN;
 
     Token *token = token_create(type, value, line, col);
     free(value);
@@ -251,19 +271,23 @@ Token *lexer_next_token(Lexer *lexer)
 
     switch (c)
     {
-    case '//':
+    case '#':
     {
+        // check for include
         const char *kw = "include";
         int i = 0;
-        while (kw[i] && lexer->position < lexer->length &&
-               lexer->source[lexer->position] == kw[i])
-        {
-            lexer_advance(lexer);
+        int match = 1;
+        int start = lexer->position;
+        while (kw[i]) {
+            if (lexer->position + i >= lexer->length || lexer->source[lexer->position + i] != kw[i]) {
+                match = 0;
+                break;
+            }
             i++;
         }
-        if (!kw[i])
-        {
-            while (isspace(lexer_peek(lexer))) lexer_advance(lexer);
+        if (match) {
+            for(int k=0; k<i; k++) lexer_advance(lexer);
+             while (isspace(lexer_peek(lexer))) lexer_advance(lexer);
             if (lexer_peek(lexer) == '"')
             {
                 Token *path = lexer_read_string(lexer);
@@ -271,10 +295,43 @@ Token *lexer_next_token(Lexer *lexer)
                 token_free(path);
                 return tok;
             }
-            return token_create(TOKEN_ERROR, NULL, line, col);
+             return token_create(TOKEN_ERROR, "Expected string after #include", line, col);
         }
-        while (lexer_peek(lexer) != '\n' && lexer_peek(lexer) != '\0') lexer_advance(lexer);
-        return token_create(TOKEN_ERROR, NULL, line, col);
+
+        // check for involve
+        kw = "involve";
+        i = 0;
+        match = 1;
+        while (kw[i]) {
+            if (lexer->position + i >= lexer->length || lexer->source[lexer->position + i] != kw[i]) {
+                match = 0;
+                break;
+            }
+            i++;
+        }
+        if (match) {
+            for(int k=0; k<i; k++) lexer_advance(lexer);
+             while (isspace(lexer_peek(lexer))) lexer_advance(lexer);
+            if (lexer_peek(lexer) == '"')
+            {
+                Token *path = lexer_read_string(lexer);
+                Token *tok = token_create(TOKEN_INVOLVE, path->value, line, col);
+                token_free(path);
+                return tok;
+            }
+             return token_create(TOKEN_ERROR, "Expected string after #involve", line, col);
+        }
+        
+        // it was a comment but lexer_skip_comment didn't catch it? 
+        // actually lexer_skip_comment catches comments. 
+        // If we are here, it means it started with # but wasn't caught by skip_comment because it looked like include/involve 
+        // OR it's a comment that somehow slipped through? 
+        // The only way to get here is if lexer_skip_comment returned because it saw #include or #involve.
+        // But wait, lexer_skip_comment checks #include/#involve and returns if found.
+        // If it returns, lexer_next_token proceeds to see '#'.
+        // So this logic handles the token generation.
+        
+        return token_create(TOKEN_ERROR, "Unknown directive or invalid comment", line, col);
     }
     case '=':
         if (lexer_peek(lexer) == '=')
