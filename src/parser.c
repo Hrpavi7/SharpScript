@@ -43,6 +43,21 @@ static int parser_expect(Parser *parser, TokenType type)
     return 1;
 }
 
+static Token *parser_peek_token(Parser *parser)
+{
+    int pos = parser->lexer->position;
+    int line = parser->lexer->line;
+    int col = parser->lexer->column;
+    
+    Token *tok = lexer_next_token(parser->lexer);
+    
+    parser->lexer->position = pos;
+    parser->lexer->line = line;
+    parser->lexer->column = col;
+    
+    return tok;
+}
+
 static int parser_has_included(Parser *parser, const char *path)
 {
     for (int i = 0; i < parser->include_count; i++)
@@ -129,6 +144,43 @@ static ASTNode *parse_primary(Parser *parser)
         return ast_create_array(elements, count);
     }
 
+    if (token->type == TOKEN_LBRACE)
+    {
+        parser_advance(parser); // eat {
+        
+        int capacity = 8;
+        int count = 0;
+        ASTNode **keys = memory_allocate(sizeof(ASTNode *) * capacity);
+        ASTNode **values = memory_allocate(sizeof(ASTNode *) * capacity);
+
+        if (parser->current_token->type != TOKEN_RBRACE) {
+            while (1) {
+                if (count >= capacity) {
+                    capacity *= 2;
+                    keys = memory_reallocate(keys, sizeof(ASTNode *) * capacity);
+                    values = memory_reallocate(values, sizeof(ASTNode *) * capacity);
+                }
+
+                // Key
+                keys[count] = parse_expression(parser);
+                
+                parser_expect(parser, TOKEN_COLON);
+
+                // Value
+                values[count] = parse_expression(parser);
+                count++;
+
+                if (parser->current_token->type == TOKEN_COMMA) {
+                    parser_advance(parser);
+                } else {
+                    break;
+                }
+            }
+        }
+        parser_expect(parser, TOKEN_RBRACE);
+        return ast_create_map(keys, values, count);
+    }
+
     if (token->type == TOKEN_IDENTIFIER)
     {
         char *name = memory_strdup(token->value);
@@ -170,10 +222,65 @@ static ASTNode *parse_primary(Parser *parser)
 
     if (token->type == TOKEN_LPAREN)
     {
-        parser_advance(parser);
-        ASTNode *expr = parse_expression(parser);
+        parser_advance(parser); // eat (
+        
+        int capacity = 4;
+        int count = 0;
+        ASTNode **exprs = memory_allocate(sizeof(ASTNode*) * capacity);
+        
+        if (parser->current_token->type != TOKEN_RPAREN) {
+            while (1) {
+                if (count >= capacity) {
+                    capacity *= 2;
+                    exprs = memory_reallocate(exprs, sizeof(ASTNode*) * capacity);
+                }
+                exprs[count++] = parse_expression(parser);
+                
+                if (parser->current_token->type == TOKEN_COMMA) {
+                    parser_advance(parser);
+                } else {
+                    break;
+                }
+            }
+        }
+        
         parser_expect(parser, TOKEN_RPAREN);
-        return expr;
+        
+        if (parser->current_token->type == TOKEN_ARROW) {
+            parser_advance(parser); // eat =>
+            
+            // Convert exprs to params
+            char **params = memory_allocate(sizeof(char*) * count);
+            for (int i=0; i<count; i++) {
+                if (exprs[i]->type != AST_IDENTIFIER) {
+                    fprintf(stderr, "Parse error: lambda parameters must be identifiers\n");
+                    return ast_create_null();
+                }
+                params[i] = memory_strdup(exprs[i]->data.identifier.name);
+                ast_free(exprs[i]);
+            }
+            memory_free(exprs);
+            
+            ASTNode *body;
+            if (parser->current_token->type == TOKEN_LBRACE)
+                body = parse_block(parser);
+            else
+                body = parse_expression(parser);
+                
+            return ast_create_lambda(params, count, body);
+        } else {
+            // Grouped expression
+            if (count == 1) {
+                ASTNode *expr = exprs[0];
+                memory_free(exprs); // just the array
+                return expr;
+            } else {
+                fprintf(stderr, "Parse error: unexpected tuple or empty group\n");
+                for(int i=0; i<count; i++) ast_free(exprs[i]);
+                memory_free(exprs);
+                return ast_create_null();
+            }
+        }
     }
 
     if (token->type == TOKEN_PRINT || token->type == TOKEN_INPUT ||
@@ -523,6 +630,31 @@ static ASTNode *parse_for_statement(Parser *parser)
     parser_advance(parser);
     parser_expect(parser, TOKEN_LPAREN);
 
+    if (parser->current_token->type == TOKEN_IDENTIFIER)
+    {
+        Token *peek = parser_peek_token(parser);
+        int is_in = (peek->type == TOKEN_IN);
+        token_free(peek);
+
+        if (is_in)
+        {
+            char *var = memory_strdup(parser->current_token->value);
+            parser_advance(parser); // eat var
+            parser_advance(parser); // eat in
+
+            ASTNode *collection = parse_expression(parser);
+            parser_expect(parser, TOKEN_RPAREN);
+
+            if (parser->current_token->type == TOKEN_ARROW)
+                parser_advance(parser);
+
+            ASTNode *body = parse_block(parser);
+            ASTNode *node = ast_create_for_in(var, collection, body);
+            memory_free(var);
+            return node;
+        }
+    }
+
     ASTNode *init = parse_statement(parser);
     ASTNode *condition = parse_expression(parser);
     parser_expect(parser, TOKEN_SEMICOLON);
@@ -554,6 +686,8 @@ static ASTNode *parse_function(Parser *parser)
     int capacity = 8;
     int count = 0;
     char **params = memory_allocate(sizeof(char *) * capacity);
+    ASTNode **defaults = memory_allocate(sizeof(ASTNode *) * capacity);
+    for (int i = 0; i < capacity; i++) defaults[i] = NULL;
 
     if (parser->current_token->type == TOKEN_VOID)
     {
@@ -568,9 +702,16 @@ static ASTNode *parse_function(Parser *parser)
             {
                 capacity *= 2;
                 params = memory_reallocate(params, sizeof(char *) * capacity);
+                defaults = memory_reallocate(defaults, sizeof(ASTNode *) * capacity);
+                for (int i = count; i < capacity; i++) defaults[i] = NULL;
             }
             params[count++] = memory_strdup(parser->current_token->value);
             parser_advance(parser);
+            if (parser->current_token->type == TOKEN_ASSIGN)
+            {
+                parser_advance(parser);
+                defaults[count - 1] = parse_expression(parser);
+            }
 
             if (parser->current_token->type == TOKEN_COMMA)
             {
@@ -583,6 +724,7 @@ static ASTNode *parse_function(Parser *parser)
         parser_advance(parser);
     ASTNode *body = parse_block(parser);
     ASTNode *func = ast_create_function(name, params, count, body);
+    func->data.function.defaults = defaults;
     memory_free(name);
     return func;
 }
@@ -603,6 +745,83 @@ static ASTNode *parse_return(Parser *parser)
     return ast_create_return(value);
 }
 
+static ASTNode *parse_match(Parser *parser) {
+    parser_advance(parser); // eat match
+    parser_expect(parser, TOKEN_LPAREN);
+    ASTNode *expr = parse_expression(parser);
+    parser_expect(parser, TOKEN_RPAREN);
+    parser_expect(parser, TOKEN_LBRACE);
+    
+    int capacity = 4;
+    int count = 0;
+    ASTNode **cases = memory_allocate(sizeof(ASTNode*) * capacity);
+    ASTNode **bodies = memory_allocate(sizeof(ASTNode*) * capacity);
+    ASTNode *default_case = NULL;
+    
+    while (parser->current_token->type != TOKEN_RBRACE && parser->current_token->type != TOKEN_EOF) {
+        if (parser->current_token->type == TOKEN_CASE) {
+            parser_advance(parser);
+            if (count >= capacity) {
+                capacity *= 2;
+                cases = memory_reallocate(cases, sizeof(ASTNode*) * capacity);
+                bodies = memory_reallocate(bodies, sizeof(ASTNode*) * capacity);
+            }
+            cases[count] = parse_expression(parser);
+            parser_expect(parser, TOKEN_COLON);
+            
+            if (parser->current_token->type == TOKEN_LBRACE) {
+                bodies[count] = parse_block(parser);
+            } else {
+                bodies[count] = parse_statement(parser);
+            }
+            count++;
+        } else if (parser->current_token->type == TOKEN_DEFAULT) {
+            parser_advance(parser);
+            parser_expect(parser, TOKEN_COLON);
+            if (parser->current_token->type == TOKEN_LBRACE) {
+                default_case = parse_block(parser);
+            } else {
+                default_case = parse_statement(parser);
+            }
+        } else {
+            parser_advance(parser);
+        }
+    }
+    parser_expect(parser, TOKEN_RBRACE);
+    return ast_create_match(expr, cases, bodies, count, default_case);
+}
+
+static ASTNode *parse_try(Parser *parser) {
+    parser_advance(parser); // eat try
+    ASTNode *try_block = parse_block(parser);
+    
+    char *error_var = NULL;
+    ASTNode *catch_block = NULL;
+    ASTNode *finally_block = NULL;
+    
+    if (parser->current_token->type == TOKEN_CATCH) {
+        parser_advance(parser);
+        if (parser->current_token->type == TOKEN_LPAREN) {
+            parser_advance(parser);
+            if (parser->current_token->type == TOKEN_IDENTIFIER) {
+                error_var = memory_strdup(parser->current_token->value);
+                parser_advance(parser);
+            }
+            parser_expect(parser, TOKEN_RPAREN);
+        }
+        catch_block = parse_block(parser);
+    }
+    
+    if (parser->current_token->type == TOKEN_FINALLY) {
+        parser_advance(parser);
+        finally_block = parse_block(parser);
+    }
+    
+    ASTNode *node = ast_create_try_catch(try_block, error_var, catch_block, finally_block);
+    if (error_var) memory_free(error_var);
+    return node;
+}
+
 static ASTNode *parse_statement(Parser *parser)
 {
     if (parser->current_token->type == TOKEN_SEMICOLON)
@@ -616,7 +835,14 @@ static ASTNode *parse_statement(Parser *parser)
         parser_advance(parser);
         return ast_create_null();
     }
-    if (parser->current_token->type == TOKEN_INCLUDE)
+    
+    if (parser->current_token->type == TOKEN_MATCH)
+        return parse_match(parser);
+        
+    if (parser->current_token->type == TOKEN_TRY)
+        return parse_try(parser);
+        
+    if (parser->current_token->type == TOKEN_INCLUDE || parser->current_token->type == TOKEN_INVOLVE)
     {
         char *path = memory_strdup(parser->current_token->value);
         parser_advance(parser);
@@ -692,9 +918,24 @@ static ASTNode *parse_statement(Parser *parser)
         }
         char *name = memory_strdup(parser->current_token->value);
         parser_advance(parser);
+        char *type_name = NULL;
+        if (parser->current_token->type == TOKEN_COLON)
+        {
+            parser_advance(parser);
+            if (parser->current_token->type == TOKEN_IDENTIFIER)
+            {
+                type_name = memory_strdup(parser->current_token->value);
+                parser_advance(parser);
+            }
+            else
+            {
+                fprintf(stderr, "Parse error: expected type name after ':'\n");
+            }
+        }
         parser_expect(parser, TOKEN_ASSIGN);
         ASTNode *value = parse_expression(parser);
         ASTNode *assign = ast_create_assign(name, value, TOKEN_CONST);
+        assign->data.assign.type_name = type_name;
         memory_free(name);
         return assign;
     }
@@ -711,9 +952,24 @@ static ASTNode *parse_statement(Parser *parser)
         }
         char *name = memory_strdup(parser->current_token->value);
         parser_advance(parser);
+        char *type_name = NULL;
+        if (parser->current_token->type == TOKEN_COLON)
+        {
+            parser_advance(parser);
+            if (parser->current_token->type == TOKEN_IDENTIFIER)
+            {
+                type_name = memory_strdup(parser->current_token->value);
+                parser_advance(parser);
+            }
+            else
+            {
+                fprintf(stderr, "Parse error: expected type name after ':'\n");
+            }
+        }
         parser_expect(parser, TOKEN_ASSIGN);
         ASTNode *value = parse_expression(parser);
         ASTNode *assign = ast_create_assign(name, value, TOKEN_INSERT);
+        assign->data.assign.type_name = type_name;
         memory_free(name);
         return assign;
     }
@@ -866,7 +1122,7 @@ ASTNode *parser_parse(Parser *parser)
         }
         statements[count++] = parse_statement(parser);
 
-        // option ";" support (oh boy)
+        // option ";" support
         if (parser->current_token->type == TOKEN_SEMICOLON)
         {
             parser_advance(parser);
