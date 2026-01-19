@@ -1,6 +1,9 @@
 # editor folders
 .vscode/
 
+# git tracking folder
+.git/
+
 # build folders
 bin/
 obj/
@@ -8,4 +11,5 @@ obj/
 *.o
 
 # other
+logs/
 TODO.md
