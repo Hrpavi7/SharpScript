@@ -1,3 +1,11 @@
+/*
+    Copyright (c) 2024-2026 SharpScript Programming Language
+    
+    Licensed under the MIT License
+*/
+
+// START OF main.c
+
 #include "include/lexer.h"
 #include "include/parser.h"
 #include "include/interpreter.h"
@@ -123,3 +131,5 @@ int main(int argc, char* argv[]) {
     show_help();
     return 1;
 }
+
+// END OF main.c
