@@ -1,7 +1,25 @@
 /*
-    copyright sharpscript language.
-    licensed under the mit license
+    Copyright (c) 2024-2026 SharpScript Programming Language
+
+    Licensed under the MIT License
 */
+
+// START OF interpreter.c
+
+/*
+ * SharpScript Interpreter
+ *
+ * This is the main interpreter implementation for the SharpScript language.
+ * It handles:
+ * - Environment management (variable scoping and storage)
+ * - AST node evaluation
+ * - Built-in function implementations
+ * - Error handling and type checking
+ * - Memory management for runtime values
+ *
+ * The interpreter uses a tree-walking approach to evaluate the AST produced by the parser.
+ * Each AST node type has a corresponding evaluation function that processes it.
+ */
 
 #include "include/interpreter.h"
 #include "include/memory.h"
@@ -12,11 +30,21 @@
 #include <string.h>
 #include <math.h>
 
-static Environment *calc_mem = NULL;
-static Value **history = NULL;
-static int history_count = 0;
-static int history_capacity = 0;
+/* Global variables for interpreter state management */
+static Environment *calc_mem = NULL; /* Calculator memory environment */
+static Value **history = NULL;       /* Command history storage */
+static int history_count = 0;        /* Number of commands in history */
+static int history_capacity = 0;     /* Current capacity of history array */
 
+/*
+ * Create a new environment with optional parent scope
+ *
+ * @param parent: Parent environment for scope chaining (NULL for global scope)
+ * @return: Newly allocated environment
+ *
+ * Environments store variables, their values, const status, and type information.
+ * They support lexical scoping through the parent pointer.
+ */
 static Environment *env_create(Environment *parent)
 {
     Environment *env = memory_allocate(sizeof(Environment));
@@ -30,6 +58,14 @@ static Environment *env_create(Environment *parent)
     return env;
 }
 
+/*
+ * Free an environment and all its associated memory
+ *
+ * @param env: Environment to free
+ *
+ * This function cleans up all variable names, values, type information,
+ * and the environment structure itself. It does NOT free parent environments.
+ */
 static void env_free(Environment *env)
 {
     for (int i = 0; i < env->count; i++)
@@ -46,6 +82,15 @@ static void env_free(Environment *env)
     memory_free(env);
 }
 
+/*
+ * Get the string name of a value's type
+ *
+ * @param val: Value to get type name for (can be NULL)
+ * @return: String representation of the value's type
+ *
+ * This function maps the internal VAL_* constants to human-readable type names
+ * used in error messages and type annotations.
+ */
 static const char *type_name(Value *val)
 {
     switch (val ? val->type : VAL_NULL)
@@ -69,6 +114,17 @@ static const char *type_name(Value *val)
     }
 }
 
+/*
+ * Set or update a variable in the environment
+ *
+ * @param env: Environment to set variable in
+ * @param name: Variable name
+ * @param value: Value to assign
+ *
+ * This function handles variable assignment with type checking and const protection.
+ * If the variable exists, it checks if it's const and validates type compatibility.
+ * If the variable doesn't exist, it creates a new entry.
+ */
 static void env_set(Environment *env, const char *name, Value *value)
 {
     for (int i = 0; i < env->count; i++)
@@ -113,6 +169,16 @@ static void env_set(Environment *env, const char *name, Value *value)
     env->count++;
 }
 
+/*
+ * Get a variable's value from the environment
+ *
+ * @param env: Environment to search in
+ * @param name: Variable name to look up
+ * @return: Value pointer if found, NULL otherwise
+ *
+ * This function searches the current environment and walks up the parent
+ * chain to find variables in outer scopes (lexical scoping).
+ */
 static Value *env_get(Environment *env, const char *name)
 {
     for (int i = 0; i < env->count; i++)
@@ -131,6 +197,16 @@ static Value *env_get(Environment *env, const char *name)
     return NULL;
 }
 
+/*
+ * Check if a variable exists in the environment
+ *
+ * @param env: Environment to search in
+ * @param name: Variable name to check
+ * @return: 1 if variable exists, 0 otherwise
+ *
+ * Similar to env_get but only checks existence without returning the value.
+ * Also walks up the parent chain for lexical scoping.
+ */
 static int env_has(Environment *env, const char *name)
 {
     for (int i = 0; i < env->count; i++)
@@ -143,6 +219,17 @@ static int env_has(Environment *env, const char *name)
     return 0;
 }
 
+/*
+ * Declare a new variable in the environment
+ *
+ * @param env: Environment to declare in
+ * @param name: Variable name
+ * @param value: Initial value
+ * @param is_const: 1 for const variables, 0 for mutable
+ *
+ * This function creates new variables and stores their inferred type.
+ * It prevents redeclaration of existing variables.
+ */
 void env_declare(Environment *env, const char *name, Value *value, int is_const)
 {
     for (int i = 0; i < env->count; i++)
@@ -170,6 +257,16 @@ void env_declare(Environment *env, const char *name, Value *value, int is_const)
     env->count++;
 }
 
+/*
+ * Add or update type annotation for an existing variable
+ *
+ * @param env: Environment containing the variable
+ * @param name: Variable name
+ * @param type_name: Type name to annotate (NULL for "unknown")
+ *
+ * This function allows runtime type annotation updates, used by the
+ * system.annotate() builtin function.
+ */
 static void env_annotate(Environment *env, const char *name, const char *type_name)
 {
     for (int i = 0; i < env->count; i++)
@@ -184,6 +281,12 @@ static void env_annotate(Environment *env, const char *name, const char *type_na
     }
 }
 
+/*
+ * Create a new number value
+ *
+ * @param num: Numeric value
+ * @return: Newly allocated Value containing the number
+ */
 static Value *value_create_number(double num)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -192,6 +295,14 @@ static Value *value_create_number(double num)
     return val;
 }
 
+/*
+ * Create a new string value
+ *
+ * @param str: String value (will be copied)
+ * @return: Newly allocated Value containing the string
+ *
+ * The input string is duplicated using memory_strdup to ensure proper memory management.
+ */
 static Value *value_create_string(const char *str)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -207,6 +318,12 @@ static Value *value_create_string(const char *str)
     }
 */
 
+/*
+ * Create a new boolean value
+ *
+ * @param b: Boolean value (0 or non-zero)
+ * @return: Newly allocated Value containing the boolean
+ */
 static Value *value_create_boolean(int b)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -215,6 +332,13 @@ static Value *value_create_boolean(int b)
     return val;
 }
 
+/*
+ * Create a new null value
+ *
+ * @return: Newly allocated Value of type VAL_NULL
+ *
+ * Null represents the absence of a value in SharpScript.
+ */
 static Value *value_create_null(void)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -222,6 +346,15 @@ static Value *value_create_null(void)
     return val;
 }
 
+/*
+ * Create a new function value (closure)
+ *
+ * @param func: AST node representing the function definition
+ * @param closure: Environment where the function was created (for lexical scoping)
+ * @return: Newly allocated function Value
+ *
+ * Functions in SharpScript are first-class values that capture their creation environment.
+ */
 static Value *value_create_function(ASTNode *func, Environment *closure)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -231,6 +364,13 @@ static Value *value_create_function(ASTNode *func, Environment *closure)
     return val;
 }
 
+/*
+ * Create a new empty array value
+ *
+ * @return: Newly allocated array Value with initial capacity of 8
+ *
+ * Arrays in SharpScript are dynamic and can hold any type of Value.
+ */
 static Value *value_create_array(void)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -241,6 +381,14 @@ static Value *value_create_array(void)
     return val;
 }
 
+/*
+ * Create a new empty map (dictionary) value
+ *
+ * @return: Newly allocated map Value with initial capacity of 8
+ *
+ * Maps in SharpScript store key-value pairs where keys are strings and values
+ * can be any type of Value.
+ */
 static Value *value_create_map(void)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -254,6 +402,16 @@ static Value *value_create_map(void)
 
 // error creation moved to builtins/errors.c
 
+/*
+ * Check if two values are equal
+ *
+ * @param a: First value
+ * @param b: Second value
+ * @return: 1 if values are equal, 0 otherwise
+ *
+ * For primitive types (numbers, strings, booleans), compares the actual values.
+ * For complex types (arrays, maps, functions), uses reference equality.
+ */
 static int values_equal(Value *a, Value *b)
 {
     if (a->type != b->type)
@@ -283,6 +441,13 @@ static int values_equal(Value *a, Value *b)
     }
 }
 
+/*
+ * Create a break control flow value
+ *
+ * @return: Newly allocated break Value
+ *
+ * Used internally by the interpreter to handle break statements in loops.
+ */
 static Value *value_create_break(void)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -290,6 +455,13 @@ static Value *value_create_break(void)
     return val;
 }
 
+/*
+ * Create a continue control flow value
+ *
+ * @return: Newly allocated continue Value
+ *
+ * Used internally by the interpreter to handle continue statements in loops.
+ */
 static Value *value_create_continue(void)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -297,6 +469,15 @@ static Value *value_create_continue(void)
     return val;
 }
 
+/*
+ * Create a return control flow value
+ *
+ * @param ret_val: Value to return (can be NULL)
+ * @return: Newly allocated return Value
+ *
+ * Used internally by the interpreter to handle return statements in functions.
+ * The return value is wrapped in this special control flow value.
+ */
 static Value *value_create_return(Value *ret_val)
 {
     Value *val = memory_allocate(sizeof(Value));
@@ -305,6 +486,19 @@ static Value *value_create_return(Value *ret_val)
     return val;
 }
 
+/*
+ * Free a Value and all its associated memory
+ *
+ * @param val: Value to free (can be NULL)
+ *
+ * This function properly cleans up different types of values:
+ * - Strings: frees the string memory
+ * - Errors: frees name and message strings
+ * - Arrays: recursively frees all elements and the array itself
+ * - Maps: frees all keys and values, then the map structure
+ * - Return values: recursively frees the wrapped value
+ * - Other types: just frees the Value structure
+ */
 void value_free(Value *val)
 {
     if (!val)
@@ -347,6 +541,19 @@ void value_free(Value *val)
     memory_free(val);
 }
 
+/*
+ * Check if a value is truthy (evaluates to true in boolean context)
+ *
+ * @param val: Value to check
+ * @return: 1 if truthy, 0 if falsy
+ *
+ * Truthy rules:
+ * - NULL and non-existent values are falsy
+ * - Booleans: true is truthy, false is falsy
+ * - Numbers: 0 is falsy, all others are truthy
+ * - Strings: empty string is falsy, others are truthy
+ * - Arrays, maps, functions: always truthy
+ */
 static int value_is_truthy(Value *val)
 {
     if (!val || val->type == VAL_NULL)
@@ -360,6 +567,19 @@ static int value_is_truthy(Value *val)
     return 1;
 }
 
+/*
+ * Print a value to stdout
+ *
+ * @param val: Value to print
+ *
+ * This function handles pretty-printing of different value types:
+ * - Numbers: prints without decimal for integers, with decimals for floats
+ * - Strings: prints as-is
+ * - Booleans: prints "true" or "false"
+ * - Errors: prints in format "<ErrorName: message>"
+ * - NULL: prints "null"
+ * - Other types: prints their string representation
+ */
 static void value_print(Value *val)
 {
     if (!val || val->type == VAL_NULL)
@@ -398,7 +618,7 @@ static void value_print(Value *val)
             if (i < val->data.array.count - 1)
                 printf(", ");
         }
-        printf("]");
+        printf("]"); // Print arrays as [elem1, elem2, ...]
         break;
     case VAL_MAP:
         printf("{");
@@ -409,10 +629,10 @@ static void value_print(Value *val)
             if (i < val->data.map.count - 1)
                 printf(", ");
         }
-        printf("}");
+        printf("}"); // Print maps as {"key": value, ...}
         break;
     case VAL_FUNCTION:
-        printf("<function>");
+        printf("<function>"); // Functions print as <function>
         break;
     default:
         printf("null");
@@ -420,6 +640,19 @@ static void value_print(Value *val)
     }
 }
 
+/*
+ * Create a deep copy of a value
+ *
+ * @param val: Value to clone (can be NULL)
+ * @return: Newly allocated copy of the value
+ *
+ * This function creates deep copies of values:
+ * - Strings: duplicates the string content
+ * - Errors: duplicates name and message
+ * - Arrays: recursively clones all elements
+ * - Maps: recursively clones all values and duplicates keys
+ * - Other types: shallow copy of the value structure
+ */
 static Value *value_clone(Value *val)
 {
     if (!val)
@@ -472,6 +705,16 @@ static Value *value_clone(Value *val)
 /*
     "get rect microsoft" -- my friend
 */
+/*
+ * Create a new interpreter instance
+ *
+ * @return: Newly allocated Interpreter with initialized global environment
+ *
+ * Sets up the interpreter with:
+ * - Global environment for built-in functions and variables
+ * - Calculator memory environment for persistent calculations
+ * - History storage for command replay
+ */
 Interpreter *interpreter_create(void)
 {
     Interpreter *interp = memory_allocate(sizeof(Interpreter));
@@ -484,6 +727,13 @@ Interpreter *interpreter_create(void)
     return interp;
 }
 
+/*
+ * Free an interpreter instance and all associated memory
+ *
+ * @param interp: Interpreter to free
+ *
+ * Cleans up all environments, history, and the interpreter structure itself.
+ */
 void interpreter_free(Interpreter *interp)
 {
     for (int i = 0; i < history_count; i++)
@@ -498,6 +748,21 @@ void interpreter_free(Interpreter *interp)
 
 static Value *eval_node(Interpreter *interp, ASTNode *node);
 
+/*
+ * Evaluate a binary operation node
+ *
+ * @param interp: Interpreter instance
+ * @param node: Binary operation AST node
+ * @return: Result of the binary operation
+ *
+ * Handles all binary operations including:
+ * - Addition (with string concatenation support)
+ * - Subtraction, multiplication, division, modulo
+ * - Comparison operations (==, !=, <, <=, >, >=)
+ * - Logical operations (&&, ||)
+ *
+ * For addition, supports automatic string conversion for mixed types.
+ */
 static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 {
     Value *left = eval_node(interp, node->data.binary_op.left);
@@ -505,11 +770,13 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_ADD)
     {
+        /* String concatenation: if either operand is a string, convert both to strings */
         if (left->type == VAL_STRING || right->type == VAL_STRING)
         {
             char buffer[1024];
             char left_str[512], right_str[512];
 
+            /* Convert left operand to string */
             if (left->type == VAL_STRING)
                 strcpy(left_str, left->data.string);
             else if (left->type == VAL_NUMBER)
@@ -519,6 +786,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
             else
                 strcpy(left_str, "null");
 
+            /* Convert right operand to string */
             if (right->type == VAL_STRING)
                 strcpy(right_str, right->data.string);
             else if (right->type == VAL_NUMBER)
@@ -528,6 +796,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
             else
                 strcpy(right_str, "null");
 
+            /* Concatenate and return result */
             sprintf(buffer, "%s%s", left_str, right_str);
             Value *result = value_create_string(buffer);
             value_free(left);
@@ -535,6 +804,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
             return result;
         }
 
+        /* Numeric addition */
         double result = left->data.number + right->data.number;
         value_free(left);
         value_free(right);
@@ -543,6 +813,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_SUB)
     {
+        /* Numeric subtraction */
         double result = left->data.number - right->data.number;
         value_free(left);
         value_free(right);
@@ -551,6 +822,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_MUL)
     {
+        /* Numeric multiplication */
         double result = left->data.number * right->data.number;
         value_free(left);
         value_free(right);
@@ -559,6 +831,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_DIV)
     {
+        /* Numeric division */
         double result = left->data.number / right->data.number;
         value_free(left);
         value_free(right);
@@ -567,6 +840,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_MOD)
     {
+        /* Numeric modulo (remainder) operation */
         double result = fmod(left->data.number, right->data.number);
         value_free(left);
         value_free(right);
@@ -575,6 +849,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_EQ)
     {
+        /* Equality comparison: supports numbers, strings, and booleans */
         int result = 0;
         if (left->type == VAL_NUMBER && right->type == VAL_NUMBER)
         {
@@ -595,6 +870,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_NEQ)
     {
+        /* Not-equal comparison: supports numbers, strings, and booleans */
         int result = 1;
         if (left->type == VAL_NUMBER && right->type == VAL_NUMBER)
         {
@@ -604,7 +880,6 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
         {
             result = strcmp(left->data.string, right->data.string) != 0;
         }
-        // line 444
         else if (left->type == VAL_BOOLEAN && right->type == VAL_BOOLEAN)
         {
             result = left->data.boolean != right->data.boolean;
@@ -616,6 +891,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_LT)
     {
+        /* Less-than comparison: numeric only */
         int result = left->data.number < right->data.number;
         value_free(left);
         value_free(right);
@@ -624,6 +900,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_GT)
     {
+        /* Greater-than comparison: numeric only */
         int result = left->data.number > right->data.number;
         value_free(left);
         value_free(right);
@@ -632,6 +909,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_LTE)
     {
+        /* Less-than-or-equal comparison: numeric only */
         int result = left->data.number <= right->data.number;
         value_free(left);
         value_free(right);
@@ -640,6 +918,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_GTE)
     {
+        /* Greater-than-or-equal comparison: numeric only */
         int result = left->data.number >= right->data.number;
         value_free(left);
         value_free(right);
@@ -648,6 +927,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_AND)
     {
+        /* Logical AND: both operands must be truthy */
         int result = value_is_truthy(left) && value_is_truthy(right);
         value_free(left);
         value_free(right);
@@ -656,6 +936,7 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
 
     if (node->data.binary_op.op == TOKEN_OR)
     {
+        /* Logical OR: at least one operand must be truthy */
         int result = value_is_truthy(left) || value_is_truthy(right);
         value_free(left);
         value_free(right);
@@ -667,10 +948,22 @@ static Value *eval_binary_op(Interpreter *interp, ASTNode *node)
     return value_create_null();
 }
 
+/*
+ * Evaluate a built-in function call
+ *
+ * @param interp: Interpreter instance
+ * @param name: Built-in function name
+ * @param args: Array of argument AST nodes
+ * @param arg_count: Number of arguments
+ * @return: Result of the built-in function
+ *
+ * Handles system built-in functions including print, output, help, and error.
+ */
 static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args, int arg_count)
 {
     if (strcmp(name, "system.print") == 0)
     {
+        /* Print arguments to stdout with spaces between them */
         for (int i = 0; i < arg_count; i++)
         {
             Value *val = eval_node(interp, args[i]);
@@ -685,6 +978,7 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
 
     if (strcmp(name, "system.output") == 0)
     {
+        /* Same as print - output arguments to stdout */
         for (int i = 0; i < arg_count; i++)
         {
             Value *val = eval_node(interp, args[i]);
@@ -699,6 +993,7 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
 
     if (strcmp(name, "system.help") == 0)
     {
+        /* Display help documentation for a topic */
         const char *topic = "help";
         if (arg_count >= 1)
         {
@@ -713,6 +1008,13 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_null();
     }
 
+    /*
+     * system.error: Print error message to stderr
+     *
+     * Takes multiple arguments and prints them as an error message.
+     * Each argument is evaluated and printed to stderr with spaces between them.
+     * Non-string values are converted to their string representation.
+     */
     if (strcmp(name, "system.error") == 0)
     {
         fprintf(stderr, "Error: ");
@@ -723,8 +1025,7 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
                 fprintf(stderr, "%s", val->data.string);
             else
             {
-                // print non-strings via value_print to stdout, capture via buffer? Simpler: just use value_print to stdout.
-                // Fallback to number/boolean printing to stderr
+                // Handle non-string types by converting to their string representation
                 if (val->type == VAL_NUMBER)
                     fprintf(stderr, "%g", val->data.number);
                 else if (val->type == VAL_BOOLEAN)
@@ -740,6 +1041,13 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_null();
     }
 
+    /*
+     * system.warning: Print warning message to stdout
+     *
+     * Takes multiple arguments and prints them as a warning message.
+     * Each argument is evaluated and printed to stdout with spaces between them.
+     * Uses value_print() for consistent formatting across all value types.
+     */
     if (strcmp(name, "system.warning") == 0)
     {
         printf("Warning: ");
@@ -755,6 +1063,13 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_null();
     }
 
+    /*
+     * system.input: Read user input from stdin
+     *
+     * Optional argument: prompt message to display
+     * Returns: String containing the user's input (without newline)
+     * If input fails, returns an empty string
+     */
     if (strcmp(name, "system.input") == 0)
     {
         if (arg_count > 0)
@@ -767,13 +1082,19 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         char buffer[1024];
         if (fgets(buffer, sizeof(buffer), stdin))
         {
-            buffer[strcspn(buffer, "\n")] = 0;
+            buffer[strcspn(buffer, "\n")] = 0; // Remove trailing newline
             return value_create_string(buffer);
         }
         return value_create_string("");
     }
 
-    // oh boy, if statmenets
+    /*
+     * Trigonometric functions
+     * Each takes one numeric argument and returns the trigonometric result
+     * Non-numeric arguments are treated as 0.0
+     */
+
+    // system.sin: Sine function (radians)
     if (strcmp(name, "system.sin") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -781,6 +1102,8 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(sin(v));
     }
+
+    // system.cos: Cosine function (radians)
     if (strcmp(name, "system.cos") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -788,6 +1111,8 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(cos(v));
     }
+
+    // system.tan: Tangent function (radians)
     if (strcmp(name, "system.tan") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -795,6 +1120,8 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(tan(v));
     }
+
+    // system.asin: Arcsine function (returns radians)
     if (strcmp(name, "system.asin") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -802,6 +1129,8 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(asin(v));
     }
+
+    // system.acos: Arccosine function (returns radians)
     if (strcmp(name, "system.acos") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -809,6 +1138,7 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(acos(v));
     }
+    // system.atan: Arctangent function (returns radians)
     if (strcmp(name, "system.atan") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -816,6 +1146,8 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(atan(v));
     }
+
+    // system.log: Base-10 logarithm function
     if (strcmp(name, "system.log") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -823,14 +1155,17 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(log10(v));
     }
+
+    // system.ln: Natural logarithm function
     if (strcmp(name, "system.ln") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
         double v = x->type == VAL_NUMBER ? x->data.number : 0.0;
-        // line 666 hehehe
         value_free(x);
         return value_create_number(log(v));
     }
+
+    // system.exp: Exponential function (e^x)
     if (strcmp(name, "system.exp") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -838,6 +1173,8 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(exp(v));
     }
+
+    // system.sqrt: Square root function
     if (strcmp(name, "system.sqrt") == 0 && arg_count >= 1)
     {
         Value *x = eval_node(interp, args[0]);
@@ -845,6 +1182,7 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(x);
         return value_create_number(sqrt(v));
     }
+    // system.pow: Power function (a^b)
     if (strcmp(name, "system.pow") == 0 && arg_count >= 2)
     {
         Value *a = eval_node(interp, args[0]);
@@ -856,6 +1194,12 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_number(pow(av, bv));
     }
 
+    /*
+     * system.store: Store a value in calculator memory
+     *
+     * Takes two arguments: name (string) and value to store
+     * Creates a copy of the value and stores it in the calculator memory environment
+     */
     if (strcmp(name, "system.store") == 0 && arg_count >= 2)
     {
         Value *n = eval_node(interp, args[0]);
@@ -872,6 +1216,12 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         value_free(v);
         return value_create_null();
     }
+    /*
+     * system.recall: Recall a value from calculator memory
+     *
+     * Takes one argument: name (string) of the stored value
+     * Returns: Copy of the stored value, or null if not found
+     */
     if (strcmp(name, "system.recall") == 0 && arg_count >= 1)
     {
         Value *n = eval_node(interp, args[0]);
@@ -898,6 +1248,16 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_null();
     }
 
+    /*
+     * system.convert: Convert between different units
+     *
+     * Takes three arguments: value (number), from_unit (string), to_unit (string)
+     * Supported conversions:
+     * - Length: meters (m), kilometers (km), miles (mi)
+     * - Weight: kilograms (kg), pounds (lb)
+     * - Temperature: Celsius (C), Fahrenheit (F), Kelvin (K)
+     * Returns: Converted value as number, or null if conversion not supported
+     */
     if (strcmp(name, "system.convert") == 0 && arg_count >= 3)
     {
         Value *val = eval_node(interp, args[0]);
@@ -938,6 +1298,13 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_number(out);
     }
 
+    /*
+     * system.history.add: Add a value to the command history
+     *
+     * Takes one argument: value to add to history
+     * Automatically grows the history array when needed
+     * Returns: null
+     */
     if (strcmp(name, "system.history.add") == 0 && arg_count >= 1)
     {
         Value *v = eval_node(interp, args[0]);
@@ -949,6 +1316,12 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         history[history_count++] = v;
         return value_create_null();
     }
+    /*
+     * system.history.get: Get all values from command history
+     *
+     * Returns: Array containing copies of all history values
+     * The returned array is a copy, so modifications don't affect the original history
+     */
     if (strcmp(name, "system.history.get") == 0)
     {
         Value *arr = value_create_array();
@@ -969,6 +1342,12 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         }
         return arr;
     }
+    /*
+     * system.history.clear: Clear all values from command history
+     *
+     * Frees all history values and resets the history count to zero
+     * Returns: null
+     */
     if (strcmp(name, "system.history.clear") == 0)
     {
         for (int i = 0; i < history_count; i++)
@@ -979,6 +1358,15 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_null();
     }
 
+    /*
+     * system.len: Get the length of a value
+     *
+     * Takes one argument: value to measure
+     * Returns: Length as number
+     * - For strings: character count
+     * - For arrays: element count
+     * - For other types: 0
+     */
     if (strcmp(name, "system.len") == 0 && arg_count > 0)
     {
         Value *val = eval_node(interp, args[0]);
@@ -997,6 +1385,13 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_number(len);
     }
 
+    /*
+     * system.type: Get the type of a value as a string
+     *
+     * Takes one argument: value to check
+     * Returns: String representation of the type
+     * Possible return values: "number", "string", "boolean", "array", "function", "null"
+     */
     if (strcmp(name, "system.type") == 0 && arg_count > 0)
     {
         Value *val = eval_node(interp, args[0]);
@@ -1028,6 +1423,13 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_string(type_name);
     }
 
+    /*
+     * system.annotate: Add a type annotation to a variable
+     *
+     * Takes two arguments: variable_name (string), type_name (string)
+     * Updates the type annotation for an existing variable in the current environment
+     * Returns: null
+     */
     if (strcmp(name, "system.annotate") == 0 && arg_count >= 2)
     {
         Value *n = eval_node(interp, args[0]);
@@ -1051,6 +1453,13 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_null();
     }
 
+    /*
+     * system.throw: Throw a custom error
+     *
+     * Takes up to three arguments: error_name (string), error_message (string), error_code (number)
+     * Default values: name="Error", message="", code=0
+     * Throws the error immediately and returns null
+     */
     if (strcmp(name, "system.throw") == 0 && arg_count >= 1)
     {
         const char *namev = "Error";
@@ -1081,6 +1490,12 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return value_create_null();
     }
 
+    /*
+     * file.read: Read contents of a file
+     *
+     * Takes one argument: file_path (string)
+     * Returns: String containing file contents, or null if file cannot be read
+     */
     if (strcmp(name, "file.read") == 0 && arg_count >= 1)
     {
         Value *p = eval_node(interp, args[0]);
@@ -1091,6 +1506,13 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
         return out;
     }
 
+    /*
+     * file.write: Write data to a file
+     *
+     * Takes two arguments: file_path (string), data (any type)
+     * Writes the string representation of data to the specified file
+     * Returns: null
+     */
     if (strcmp(name, "file.write") == 0 && arg_count >= 2)
     {
         Value *p = eval_node(interp, args[0]);
@@ -1105,6 +1527,20 @@ static Value *eval_builtin(Interpreter *interp, const char *name, ASTNode **args
     return value_create_null(); // return the null function for *node
 }
 
+/*
+ * eval_node: Evaluate an AST node and return its computed value
+ *
+ * This is the core evaluation function that processes different types of AST nodes:
+ * - Literals (numbers, strings, booleans, null) are converted to Value objects
+ * - Identifiers are looked up in the current environment
+ * - Binary and unary operations are evaluated recursively
+ * - Function calls are handled by calling eval_builtin or user-defined functions
+ * - Control flow (if/else, while loops) are executed with proper scoping
+ * - Variable assignments and declarations update the environment
+ *
+ * Returns: A new Value object representing the result of evaluation
+ * Note: The caller is responsible for freeing the returned Value
+ */
 static Value *eval_node(Interpreter *interp, ASTNode *node)
 {
     if (!node)
@@ -1113,19 +1549,24 @@ static Value *eval_node(Interpreter *interp, ASTNode *node)
     switch (node->type)
     {
     case AST_NUMBER:
+        // Convert numeric literal to Value
         return value_create_number(node->data.number.value);
 
     case AST_STRING:
+        // Convert string literal to Value
         return value_create_string(node->data.string.value);
 
     case AST_BOOLEAN:
+        // Convert boolean literal to Value
         return value_create_boolean(node->data.boolean.value);
 
     case AST_NULL:
+        // Convert null literal to Value
         return value_create_null();
 
     case AST_IDENTIFIER:
     {
+        // Look up variable in current environment and return a copy
         Value *val = env_get(interp->current, node->data.identifier.name);
         if (!val)
         {
@@ -1133,20 +1574,24 @@ static Value *eval_node(Interpreter *interp, ASTNode *node)
             return value_create_null();
         }
 
+        // Create a copy of the value to avoid reference issues
         Value *copy = memory_allocate(sizeof(Value));
         memcpy(copy, val, sizeof(Value));
         if (val->type == VAL_STRING)
         {
+            // Deep copy string data
             copy->data.string = memory_strdup(val->data.string);
         }
         return copy;
     }
 
     case AST_BINARY_OP:
+        // Delegate binary operations to specialized function
         return eval_binary_op(interp, node);
 
     case AST_UNARY_OP:
     {
+        // Evaluate unary operations (NOT, negation)
         Value *operand = eval_node(interp, node->data.unary_op.operand);
 
         if (node->data.unary_op.op == TOKEN_NOT)
@@ -1169,6 +1614,7 @@ static Value *eval_node(Interpreter *interp, ASTNode *node)
 
     case AST_ASSIGN:
     {
+        // Handle variable assignment and declaration with various operators
         Value *value = eval_node(interp, node->data.assign.value);
 
         if (node->data.assign.op == TOKEN_PLUS_ASSIGN)
@@ -1273,6 +1719,7 @@ static Value *eval_node(Interpreter *interp, ASTNode *node)
 
     case AST_IF:
     {
+        // Evaluate if-else statement
         Value *condition = eval_node(interp, node->data.if_stmt.condition);
         int is_true = value_is_truthy(condition);
         value_free(condition);
@@ -1290,6 +1737,7 @@ static Value *eval_node(Interpreter *interp, ASTNode *node)
 
     case AST_WHILE:
     {
+        // Evaluate while loop with break/continue/return support
         Value *result = value_create_null();
 
         while (1)
@@ -1375,6 +1823,7 @@ static Value *eval_node(Interpreter *interp, ASTNode *node)
 
     case AST_FUNCTION:
     {
+        // Define a named function in the current environment
         Value *func = value_create_function(node, interp->current);
         env_set(interp->current, node->data.function.name, func);
         return value_create_null();
@@ -1382,6 +1831,7 @@ static Value *eval_node(Interpreter *interp, ASTNode *node)
 
     case AST_CALL:
     {
+        // Handle function calls (both built-in and user-defined)
         if (strcmp(node->data.call.name, "system.print") == 0 ||
             strcmp(node->data.call.name, "system.input") == 0 ||
             strcmp(node->data.call.name, "system.len") == 0 ||
@@ -1770,14 +2220,35 @@ static Value *eval_node(Interpreter *interp, ASTNode *node)
     }
 }
 
-// Throw an error (used by try-catch)
+/*
+ * throw_error: Throw an error for try-catch handling
+ *
+ * Stores the error in the interpreter and performs a non-local jump
+ * to the nearest catch block. This is used by the system.throw function
+ * and can be used by other built-in functions to signal errors.
+ *
+ * The error value is stored in interp->current_error for retrieval
+ * by the catch block, and longjmp transfers control to the setjmp
+ * point established by the try-catch statement.
+ */
 void throw_error(Interpreter *interp, Value *error)
 {
     interp->current_error = error;
     longjmp(interp->jmp_buf, 1);
 }
 
+/*
+ * interpreter_eval: Public interface for evaluating an AST node
+ *
+ * This is the main entry point for evaluating AST nodes from outside
+ * the interpreter module. It delegates to the internal eval_node function.
+ *
+ * Returns: A new Value object representing the result of evaluation
+ * Note: The caller is responsible for freeing the returned Value
+ */
 Value *interpreter_eval(Interpreter *interp, ASTNode *node)
 {
     return eval_node(interp, node);
 }
+
+// END OF interpreter.c
