@@ -1,6 +1,22 @@
+/*
+    Copyright (c) 2024-2026 SharpScript Programming Language
+    
+    Licensed under the MIT License
+*/
+
+// START OF ast.c
+
 #include "include/ast.h"
 #include "include/memory.h"
 
+/*
+ * ast_create_number: Create an AST node for a numeric literal
+ * 
+ * Allocates memory for a new AST node and initializes it with the given numeric value.
+ * The node type is set to AST_NUMBER and the value is stored directly.
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_number(double value)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -9,6 +25,17 @@ ASTNode *ast_create_number(double value)
     return node;
 }
 
+/*
+ * ast_create_string: Create an AST node for a string literal
+ * 
+ * Allocates memory for a new AST node and initializes it with a copy of the given string value.
+ * The node type is set to AST_STRING and the string is duplicated using memory_strdup.
+ * 
+ * Parameters:
+ *   value: The string value to store (will be copied)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_string(const char *value)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -17,6 +44,17 @@ ASTNode *ast_create_string(const char *value)
     return node;
 }
 
+/*
+ * ast_create_boolean: Create an AST node for a boolean literal
+ * 
+ * Allocates memory for a new AST node and initializes it with the given boolean value.
+ * The node type is set to AST_BOOLEAN and the value is stored directly.
+ * 
+ * Parameters:
+ *   value: The boolean value (0 for false, non-zero for true)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_boolean(int value)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -25,6 +63,14 @@ ASTNode *ast_create_boolean(int value)
     return node;
 }
 
+/*
+ * ast_create_null: Create an AST node for a null literal
+ * 
+ * Allocates memory for a new AST node and initializes it as a null value.
+ * The node type is set to AST_NULL with no additional data.
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_null(void)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -32,6 +78,17 @@ ASTNode *ast_create_null(void)
     return node;
 }
 
+/*
+ * ast_create_identifier: Create an AST node for an identifier
+ * 
+ * Allocates memory for a new AST node and initializes it with a copy of the given identifier name.
+ * The node type is set to AST_IDENTIFIER and the name is duplicated using memory_strdup.
+ * 
+ * Parameters:
+ *   name: The identifier name to store (will be copied)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_identifier(const char *name)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -40,6 +97,19 @@ ASTNode *ast_create_identifier(const char *name)
     return node;
 }
 
+/*
+ * ast_create_binary_op: Create an AST node for a binary operation
+ * 
+ * Allocates memory for a new AST node and initializes it with the given operator and operands.
+ * The node type is set to AST_BINARY_OP with left and right child nodes.
+ * 
+ * Parameters:
+ *   op: The binary operator token type (e.g., TOKEN_PLUS, TOKEN_MINUS, etc.)
+ *   left: The left operand AST node
+ *   right: The right operand AST node
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_binary_op(TokenType op, ASTNode *left, ASTNode *right)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -50,6 +120,18 @@ ASTNode *ast_create_binary_op(TokenType op, ASTNode *left, ASTNode *right)
     return node;
 }
 
+/*
+ * ast_create_unary_op: Create an AST node for a unary operation
+ * 
+ * Allocates memory for a new AST node and initializes it with the given operator and operand.
+ * The node type is set to AST_UNARY_OP with a single child node.
+ * 
+ * Parameters:
+ *   op: The unary operator token type (e.g., TOKEN_NOT, TOKEN_SUB for negation)
+ *   operand: The operand AST node
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_unary_op(TokenType op, ASTNode *operand)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -59,6 +141,20 @@ ASTNode *ast_create_unary_op(TokenType op, ASTNode *operand)
     return node;
 }
 
+/*
+ * ast_create_assign: Create an AST node for variable assignment or declaration
+ * 
+ * Allocates memory for a new AST node and initializes it with assignment information.
+ * The node type is set to AST_ASSIGN with the variable name, value expression, and operator.
+ * Type annotations are supported via the type_name field (initialized to NULL).
+ * 
+ * Parameters:
+ *   name: The variable name to assign to (will be copied)
+ *   value: The value expression AST node
+ *   op: The assignment operator token type (e.g., TOKEN_ASSIGN, TOKEN_PLUS_ASSIGN, etc.)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_assign(const char *name, ASTNode *value, TokenType op)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -70,6 +166,19 @@ ASTNode *ast_create_assign(const char *name, ASTNode *value, TokenType op)
     return node;
 }
 
+/*
+ * ast_create_if: Create an AST node for an if-else statement
+ * 
+ * Allocates memory for a new AST node and initializes it with if-else statement components.
+ * The node type is set to AST_IF with condition, then block, and optional else block.
+ * 
+ * Parameters:
+ *   condition: The condition expression AST node
+ *   then_block: The AST node for the then block
+ *   else_block: The AST node for the else block (can be NULL for simple if statements)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_if(ASTNode *condition, ASTNode *then_block, ASTNode *else_block)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -80,6 +189,18 @@ ASTNode *ast_create_if(ASTNode *condition, ASTNode *then_block, ASTNode *else_bl
     return node;
 }
 
+/*
+ * ast_create_while: Create an AST node for a while loop
+ * 
+ * Allocates memory for a new AST node and initializes it with while loop components.
+ * The node type is set to AST_WHILE with condition and body expressions.
+ * 
+ * Parameters:
+ *   condition: The loop condition expression AST node
+ *   body: The loop body AST node
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_while(ASTNode *condition, ASTNode *body)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -89,6 +210,21 @@ ASTNode *ast_create_while(ASTNode *condition, ASTNode *body)
     return node;
 }
 
+/*
+ * ast_create_for: Create an AST node for a for loop
+ * 
+ * Allocates memory for a new AST node and initializes it with for loop components.
+ * The node type is set to AST_FOR with initialization, condition, increment, and body expressions.
+ * Any of the components can be NULL for optional parts of the for loop.
+ * 
+ * Parameters:
+ *   init: The initialization expression AST node (can be NULL)
+ *   condition: The loop condition expression AST node (can be NULL for infinite loops)
+ *   increment: The increment expression AST node (can be NULL)
+ *   body: The loop body AST node
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_for(ASTNode *init, ASTNode *condition, ASTNode *increment, ASTNode *body)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -100,6 +236,21 @@ ASTNode *ast_create_for(ASTNode *init, ASTNode *condition, ASTNode *increment, A
     return node;
 }
 
+/*
+ * ast_create_function: Create an AST node for a function declaration
+ * 
+ * Allocates memory for a new AST node and initializes it with function declaration information.
+ * The node type is set to AST_FUNCTION with name, parameters, and body.
+ * Default parameter values are initially set to NULL and can be added later.
+ * 
+ * Parameters:
+ *   name: The function name (will be copied)
+ *   params: Array of parameter names
+ *   param_count: Number of parameters
+ *   body: The function body AST node
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_function(const char *name, char **params, int param_count, ASTNode *body)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -112,6 +263,19 @@ ASTNode *ast_create_function(const char *name, char **params, int param_count, A
     return node;
 }
 
+/*
+ * ast_create_call: Create an AST node for a function call
+ * 
+ * Allocates memory for a new AST node and initializes it with function call information.
+ * The node type is set to AST_CALL with function name and argument expressions.
+ * 
+ * Parameters:
+ *   name: The function name to call (will be copied)
+ *   args: Array of argument expression AST nodes
+ *   arg_count: Number of arguments
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_call(const char *name, ASTNode **args, int arg_count)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -122,6 +286,17 @@ ASTNode *ast_create_call(const char *name, ASTNode **args, int arg_count)
     return node;
 }
 
+/*
+ * ast_create_return: Create an AST node for a return statement
+ * 
+ * Allocates memory for a new AST node and initializes it with return statement information.
+ * The node type is set to AST_RETURN with the value to return.
+ * 
+ * Parameters:
+ *   value: The value expression AST node to return (can be NULL for empty returns)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_return(ASTNode *value)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -130,6 +305,14 @@ ASTNode *ast_create_return(ASTNode *value)
     return node;
 }
 
+/*
+ * ast_create_break: Create an AST node for a break statement
+ * 
+ * Allocates memory for a new AST node and initializes it as a break statement.
+ * The node type is set to AST_BREAK with no additional data.
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_break(void)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -137,6 +320,14 @@ ASTNode *ast_create_break(void)
     return node;
 }
 
+/*
+ * ast_create_continue: Create an AST node for a continue statement
+ * 
+ * Allocates memory for a new AST node and initializes it as a continue statement.
+ * The node type is set to AST_CONTINUE with no additional data.
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_continue(void)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -144,6 +335,18 @@ ASTNode *ast_create_continue(void)
     return node;
 }
 
+/*
+ * ast_create_block: Create an AST node for a block of statements
+ * 
+ * Allocates memory for a new AST node and initializes it with a sequence of statements.
+ * The node type is set to AST_BLOCK with an array of statement nodes.
+ * 
+ * Parameters:
+ *   statements: Array of statement AST nodes
+ *   count: Number of statements in the block
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_block(ASTNode **statements, int count)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -153,6 +356,18 @@ ASTNode *ast_create_block(ASTNode **statements, int count)
     return node;
 }
 
+/*
+ * ast_create_array: Create an AST node for an array literal
+ * 
+ * Allocates memory for a new AST node and initializes it with array elements.
+ * The node type is set to AST_ARRAY with an array of element expressions.
+ * 
+ * Parameters:
+ *   elements: Array of element expression AST nodes
+ *   count: Number of elements in the array
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_array(ASTNode **elements, int count)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -162,6 +377,18 @@ ASTNode *ast_create_array(ASTNode **elements, int count)
     return node;
 }
 
+/*
+ * ast_create_index: Create an AST node for array/map indexing
+ * 
+ * Allocates memory for a new AST node and initializes it with index expression information.
+ * The node type is set to AST_INDEX with object and index expressions.
+ * 
+ * Parameters:
+ *   object: The object expression to index (array or map)
+ *   index: The index expression (number for arrays, string for maps)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_index(ASTNode *object, ASTNode *index)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -171,6 +398,18 @@ ASTNode *ast_create_index(ASTNode *object, ASTNode *index)
     return node;
 }
 
+/*
+ * ast_create_namespace: Create an AST node for a namespace declaration
+ * 
+ * Allocates memory for a new AST node and initializes it with namespace information.
+ * The node type is set to AST_NAMESPACE with name and body expressions.
+ * 
+ * Parameters:
+ *   name: The namespace name (will be copied)
+ *   body: The namespace body AST node containing declarations
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_namespace(const char *name, ASTNode *body)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -180,6 +419,20 @@ ASTNode *ast_create_namespace(const char *name, ASTNode *body)
     return node;
 }
 
+/*
+ * ast_create_enum: Create an AST node for an enum declaration
+ * 
+ * Allocates memory for a new AST node and initializes it with enum information.
+ * The node type is set to AST_ENUM with name, member names, and associated values.
+ * 
+ * Parameters:
+ *   name: The enum name (will be copied)
+ *   members: Array of member names
+ *   values: Array of numeric values for each member
+ *   count: Number of enum members
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_enum(const char *name, char **members, double *values, int count)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -191,6 +444,19 @@ ASTNode *ast_create_enum(const char *name, char **members, double *values, int c
     return node;
 }
 
+/*
+ * ast_create_class: Create an AST node for a class declaration
+ * 
+ * Allocates memory for a new AST node and initializes it with class information.
+ * The node type is set to AST_CLASS with name, optional base class, and body.
+ * 
+ * Parameters:
+ *   name: The class name (will be copied)
+ *   base: The base class name (can be NULL for no inheritance)
+ *   body: The class body AST node containing methods and properties
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_class(const char *name, const char *base, ASTNode *body)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -201,6 +467,32 @@ ASTNode *ast_create_class(const char *name, const char *base, ASTNode *body)
     return node;
 }
 
+/*
+ * ast_create_map: Create an AST node for a map literal
+ * 
+ * Allocates memory for a new AST node and initializes it with map key-value pairs.
+ * The node type is set to AST_MAP with arrays of keys and values.
+ * 
+ * Parameters:
+ *   keys: Array of key expression AST nodes
+ *   values: Array of value expression AST nodes
+ *   count: Number of key-value pairs
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
+/*
+ * ast_create_map: Create an AST node for a map (dictionary) literal
+ * 
+ * Allocates memory for a new AST node and initializes it with map expression data.
+ * The node type is set to AST_MAP with parallel arrays of keys and values.
+ * 
+ * Parameters:
+ *   keys: Array of key AST nodes
+ *   values: Array of value AST nodes (parallel to keys)
+ *   count: Number of key-value pairs
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_map(ASTNode **keys, ASTNode **values, int count)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -211,6 +503,19 @@ ASTNode *ast_create_map(ASTNode **keys, ASTNode **values, int count)
     return node;
 }
 
+/*
+ * ast_create_lambda: Create an AST node for a lambda (anonymous function)
+ * 
+ * Allocates memory for a new AST node and initializes it with lambda expression information.
+ * The node type is set to AST_LAMBDA with parameters and body.
+ * 
+ * Parameters:
+ *   params: Array of parameter names
+ *   param_count: Number of parameters
+ *   body: The lambda body AST node
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_lambda(char **params, int param_count, ASTNode *body)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -221,6 +526,21 @@ ASTNode *ast_create_lambda(char **params, int param_count, ASTNode *body)
     return node;
 }
 
+/*
+ * ast_create_match: Create an AST node for a match expression
+ * 
+ * Allocates memory for a new AST node and initializes it with match expression information.
+ * The node type is set to AST_MATCH with expression, case patterns, and corresponding bodies.
+ * 
+ * Parameters:
+ *   expr: The expression to match against
+ *   cases: Array of case pattern AST nodes
+ *   bodies: Array of body AST nodes for each case
+ *   case_count: Number of cases
+ *   default_case: The default case body (can be NULL)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_match(ASTNode *expr, ASTNode **cases, ASTNode **bodies, int case_count, ASTNode *default_case)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -233,6 +553,20 @@ ASTNode *ast_create_match(ASTNode *expr, ASTNode **cases, ASTNode **bodies, int 
     return node;
 }
 
+/*
+ * ast_create_try_catch: Create an AST node for a try-catch-finally statement
+ * 
+ * Allocates memory for a new AST node and initializes it with try-catch-finally information.
+ * The node type is set to AST_TRY_CATCH with try, catch, and finally blocks.
+ * 
+ * Parameters:
+ *   try_block: The try block AST node
+ *   error_var: The error variable name for catch block (can be NULL)
+ *   catch_block: The catch block AST node (can be NULL)
+ *   finally_block: The finally block AST node (can be NULL)
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_try_catch(ASTNode *try_block, const char *error_var, ASTNode *catch_block, ASTNode *finally_block)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -244,6 +578,19 @@ ASTNode *ast_create_try_catch(ASTNode *try_block, const char *error_var, ASTNode
     return node;
 }
 
+/*
+ * ast_create_for_in: Create an AST node for a for-in loop
+ * 
+ * Allocates memory for a new AST node and initializes it with for-in loop information.
+ * The node type is set to AST_FOR_IN with iteration variable, collection, and body.
+ * 
+ * Parameters:
+ *   var: The iteration variable name (will be copied)
+ *   collection: The collection expression to iterate over
+ *   body: The loop body AST node
+ * 
+ * Returns: Pointer to the newly created AST node
+ */
 ASTNode *ast_create_for_in(const char *var, ASTNode *collection, ASTNode *body)
 {
     ASTNode *node = memory_allocate(sizeof(ASTNode));
@@ -254,6 +601,26 @@ ASTNode *ast_create_for_in(const char *var, ASTNode *collection, ASTNode *body)
     return node;
 }
 
+/*
+ * ast_free: Free an AST node and all its children
+ * 
+ * Recursively frees all memory associated with an AST node and its children.
+ * Handles different node types by freeing their specific data structures.
+ * Strings are freed, arrays/structures are recursively processed, and child nodes are freed.
+ * 
+ * Parameters:
+ *   node: The AST node to free (can be NULL)
+ */
+/*
+ * ast_free: Free an AST node and all its children
+ * 
+ * Recursively frees all memory associated with an AST node and its children.
+ * Handles different node types by freeing their specific data structures.
+ * Strings are freed, arrays/structures are recursively processed, and child nodes are freed.
+ * 
+ * Parameters:
+ *   node: The AST node to free (can be NULL)
+ */
 void ast_free(ASTNode *node)
 {
     if (!node)
@@ -393,3 +760,5 @@ void ast_free(ASTNode *node)
 
     memory_free(node);
 }
+
+// END OF ast.c
