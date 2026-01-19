@@ -1,6 +1,25 @@
+/*
+    Copyright (c) 2024-2026 SharpScript Programming Language
+    
+    Licensed under the MIT License
+*/
+
+// START OF lexer.c
+
 #include "include/lexer.h"
 #include "include/memory.h"
 
+/*
+ * lexer_create: Create a new lexer instance
+ * 
+ * Allocates memory for a new Lexer and initializes it with the provided source code.
+ * Sets up position tracking (line 1, column 1) and calculates source length.
+ * 
+ * Parameters:
+ *   source: The source code string to tokenize
+ * 
+ * Returns: Pointer to the newly created Lexer instance
+ */
 Lexer *lexer_create(const char *source)
 {
     Lexer *lexer = malloc(sizeof(Lexer));
@@ -12,19 +31,50 @@ Lexer *lexer_create(const char *source)
     return lexer;
 }
 
+/*
+ * lexer_free: Free a lexer instance and its resources
+ * 
+ * Deallocates the lexer source string and the lexer structure itself.
+ * Safe to call on NULL pointers (no-op).
+ * 
+ * Parameters:
+ *   lexer: The lexer instance to free
+ */
 void lexer_free(Lexer *lexer)
 {
+    if (!lexer) return;
     free(lexer->source);
     free(lexer);
 }
 
+/*
+ * token_free: Free a token and its associated value
+ * 
+ * Deallocates the token's value string (if present) and the token structure itself.
+ * Safe to call on NULL pointers (no-op).
+ * 
+ * Parameters:
+ *   token: The token instance to free
+ */
 void token_free(Token *token)
 {
+    if (!token) return;
     if (token->value)
         free(token->value);
     free(token);
 }
 
+/*
+ * lexer_peek: Peek at the current character without advancing
+ * 
+ * Returns the character at the current lexer position without consuming it.
+ * Returns null terminator ('\0') if at end of input.
+ * 
+ * Parameters:
+ *   lexer: The lexer instance
+ * 
+ * Returns: The current character or '\0' if at end
+ */
 static char lexer_peek(Lexer *lexer)
 {
     if (lexer->position >= lexer->length)
@@ -32,6 +82,18 @@ static char lexer_peek(Lexer *lexer)
     return lexer->source[lexer->position];
 }
 
+/*
+ * lexer_advance: Advance the lexer position and return the character
+ * 
+ * Consumes the current character, updates line/column tracking, and returns it.
+ * Handles newline detection for accurate error reporting.
+ * Returns null terminator ('\0') if at end of input.
+ * 
+ * Parameters:
+ *   lexer: The lexer instance
+ * 
+ * Returns: The consumed character or '\0' if at end
+ */
 static char lexer_advance(Lexer *lexer)
 {
     if (lexer->position >= lexer->length)
@@ -49,6 +111,15 @@ static char lexer_advance(Lexer *lexer)
     return c;
 }
 
+/*
+ * lexer_skip_whitespace: Skip whitespace characters
+ * 
+ * Advances the lexer past any whitespace characters (spaces, tabs, newlines).
+ * Used to ignore formatting between tokens.
+ * 
+ * Parameters:
+ *   lexer: The lexer instance
+ */
 static void lexer_skip_whitespace(Lexer *lexer)
 {
     while (isspace(lexer_peek(lexer)))
@@ -57,6 +128,16 @@ static void lexer_skip_whitespace(Lexer *lexer)
     }
 }
 
+/*
+ * lexer_skip_comment: Skip comment lines (but preserve #include/#involve directives)
+ * 
+ * Handles comment lines starting with '#'. Special cases for #include and #involve
+ * directives which are preserved as tokens rather than skipped as comments.
+ * Regular comments are consumed until end of line.
+ * 
+ * Parameters:
+ *   lexer: The lexer instance
+ */
 static void lexer_skip_comment(Lexer *lexer)
 {
     if (lexer_peek(lexer) == '#')
@@ -67,7 +148,7 @@ static void lexer_skip_comment(Lexer *lexer)
         while (kw[i] && (pos + i) < lexer->length && lexer->source[pos + i] == kw[i]) i++;
         if (i == 8)
         {
-            return;
+            return; // Don't skip #include directives
         }
         
         // check for #involve
@@ -76,7 +157,7 @@ static void lexer_skip_comment(Lexer *lexer)
         while (kw[i] && (pos + i) < lexer->length && lexer->source[pos + i] == kw[i]) i++;
         if (i == 8)
         {
-            return;
+            return; // Don't skip #involve directives
         }
         while (lexer_peek(lexer) != '\n' && lexer_peek(lexer) != '\0')
         {
@@ -85,6 +166,20 @@ static void lexer_skip_comment(Lexer *lexer)
     }
 }
 
+/*
+ * token_create: Create a new token with the given properties
+ * 
+ * Allocates memory for a new Token and initializes it with type, value, and position info.
+ * Creates a copy of the value string using memory_strdup if provided.
+ * 
+ * Parameters:
+ *   type: The token type (TOKEN_NUMBER, TOKEN_STRING, etc.)
+ *   value: The token value string (may be NULL for operators/punctuation)
+ *   line: The source line number where the token starts
+ *   col: The source column number where the token starts
+ * 
+ * Returns: Pointer to the newly created Token
+ */
 static Token *token_create(TokenType type, const char *value, int line, int col)
 {
     Token *token = malloc(sizeof(Token));
@@ -95,12 +190,24 @@ static Token *token_create(TokenType type, const char *value, int line, int col)
     return token;
 }
 
+/*
+ * lexer_read_number: Read a numeric literal token
+ * 
+ * Consumes digits and optional decimal points to form a number token.
+ * Handles both integer and floating-point number formats.
+ * 
+ * Parameters:
+ *   lexer: The lexer instance
+ * 
+ * Returns: A new TOKEN_NUMBER token with the numeric value
+ */
 static Token *lexer_read_number(Lexer *lexer)
 {
     int start = lexer->position;
     int line = lexer->line;
     int col = lexer->column;
 
+    // Consume digits and decimal points
     while (isdigit(lexer_peek(lexer)) || lexer_peek(lexer) == '.')
     {
         lexer_advance(lexer);
@@ -116,11 +223,22 @@ static Token *lexer_read_number(Lexer *lexer)
     return token;
 }
 
+/*
+ * lexer_read_string: Read a string literal token
+ * 
+ * Consumes characters between double quotes to form a string token.
+ * Handles proper opening/closing quote detection and string extraction.
+ * 
+ * Parameters:
+ *   lexer: The lexer instance
+ * 
+ * Returns: A new TOKEN_STRING token with the string value (without quotes)
+ */
 static Token *lexer_read_string(Lexer *lexer)
 {
     int line = lexer->line;
     int col = lexer->column;
-    lexer_advance(lexer);
+    lexer_advance(lexer); // consume opening quote
 
     int start = lexer->position;
     while (lexer_peek(lexer) != '"' && lexer_peek(lexer) != '\0')
@@ -134,19 +252,32 @@ static Token *lexer_read_string(Lexer *lexer)
     value[length] = '\0';
 
     if (lexer_peek(lexer) == '"')
-        lexer_advance(lexer);
+        lexer_advance(lexer); // consume closing quote
 
     Token *token = token_create(TOKEN_STRING, value, line, col);
     free(value);
     return token;
 }
 
+/*
+ * lexer_read_identifier: Read an identifier or keyword token
+ * 
+ * Consumes alphanumeric characters, underscores, and dots to form an identifier.
+ * Checks against keyword list to determine if it's a reserved word or user identifier.
+ * Handles extensive keyword recognition including operators, control flow, and system functions.
+ * 
+ * Parameters:
+ *   lexer: The lexer instance
+ * 
+ * Returns: A token with appropriate type (keyword or TOKEN_IDENTIFIER)
+ */
 static Token *lexer_read_identifier(Lexer *lexer)
 {
     int start = lexer->position;
     int line = lexer->line;
     int col = lexer->column;
 
+    // Consume identifier characters (alphanumeric, underscore, dot)
     while (isalnum(lexer_peek(lexer)) || lexer_peek(lexer) == '_' || lexer_peek(lexer) == '.')
     {
         lexer_advance(lexer);
@@ -157,9 +288,7 @@ static Token *lexer_read_identifier(Lexer *lexer)
     strncpy(value, lexer->source + start, length);
     value[length] = '\0';
 
-    // ctrl+c ctrl+v
-    // elseif statements
-
+    // Check if identifier is a keyword or reserved word
     TokenType type = TOKEN_IDENTIFIER;
     if (strcmp(value, "add") == 0)
         type = TOKEN_ADD;
@@ -245,12 +374,26 @@ static Token *lexer_read_identifier(Lexer *lexer)
     return token;
 }
 
+/*
+ * lexer_next_token: Get the next token from the lexer
+ * 
+ * Main tokenization function that processes the lexer state and returns the next token.
+ * Handles whitespace/comment skipping, EOF detection, and delegates to specialized readers
+ * for numbers, strings, and identifiers. Processes single and multi-character operators.
+ * 
+ * Parameters:
+ *   lexer: The lexer instance
+ * 
+ * Returns: The next token in the input stream, or TOKEN_ERROR for unrecognized input
+ */
 Token *lexer_next_token(Lexer *lexer)
 {
+    // Skip whitespace and comments before tokenizing
     lexer_skip_whitespace(lexer);
     lexer_skip_comment(lexer);
     lexer_skip_whitespace(lexer);
 
+    // Handle end of file
     if (lexer->position >= lexer->length)
     {
         return token_create(TOKEN_EOF, NULL, lexer->line, lexer->column);
@@ -260,6 +403,7 @@ Token *lexer_next_token(Lexer *lexer)
     int line = lexer->line;
     int col = lexer->column;
 
+    // Delegate to specialized readers for different token types
     if (isdigit(c))
         return lexer_read_number(lexer);
     if (c == '"')
@@ -267,17 +411,22 @@ Token *lexer_next_token(Lexer *lexer)
     if (isalpha(c) || c == '_')
         return lexer_read_identifier(lexer);
 
+    // Consume the current character for operator processing
     lexer_advance(lexer);
 
+    // Process operators and punctuation
     switch (c)
     {
     case '#':
     {
-        // check for include
+        // Handle preprocessor directives: #include and #involve
+        // Check for #include directive
         const char *kw = "include";
         int i = 0;
         int match = 1;
         int start = lexer->position;
+        
+        // Compare against "include" keyword
         while (kw[i]) {
             if (lexer->position + i >= lexer->length || lexer->source[lexer->position + i] != kw[i]) {
                 match = 0;
@@ -285,9 +434,15 @@ Token *lexer_next_token(Lexer *lexer)
             }
             i++;
         }
+        
         if (match) {
+            // Consume "include" keyword
             for(int k=0; k<i; k++) lexer_advance(lexer);
-             while (isspace(lexer_peek(lexer))) lexer_advance(lexer);
+            
+            // Skip whitespace after directive
+            while (isspace(lexer_peek(lexer))) lexer_advance(lexer);
+            
+            // Expect string literal for file path
             if (lexer_peek(lexer) == '"')
             {
                 Token *path = lexer_read_string(lexer);
@@ -295,13 +450,16 @@ Token *lexer_next_token(Lexer *lexer)
                 token_free(path);
                 return tok;
             }
-             return token_create(TOKEN_ERROR, "Expected string after #include", line, col);
+            
+            return token_create(TOKEN_ERROR, "Expected string after #include", line, col);
         }
 
-        // check for involve
+        // Check for #involve directive
         kw = "involve";
         i = 0;
         match = 1;
+        
+        // Compare against "involve" keyword
         while (kw[i]) {
             if (lexer->position + i >= lexer->length || lexer->source[lexer->position + i] != kw[i]) {
                 match = 0;
@@ -309,9 +467,15 @@ Token *lexer_next_token(Lexer *lexer)
             }
             i++;
         }
+        
         if (match) {
+            // Consume "involve" keyword
             for(int k=0; k<i; k++) lexer_advance(lexer);
-             while (isspace(lexer_peek(lexer))) lexer_advance(lexer);
+            
+            // Skip whitespace after directive
+            while (isspace(lexer_peek(lexer))) lexer_advance(lexer);
+            
+            // Expect string literal for file path
             if (lexer_peek(lexer) == '"')
             {
                 Token *path = lexer_read_string(lexer);
@@ -319,29 +483,24 @@ Token *lexer_next_token(Lexer *lexer)
                 token_free(path);
                 return tok;
             }
-             return token_create(TOKEN_ERROR, "Expected string after #involve", line, col);
+            
+            return token_create(TOKEN_ERROR, "Expected string after #involve", line, col);
         }
         
-        // it was a comment but lexer_skip_comment didn't catch it? 
-        // actually lexer_skip_comment catches comments. 
-        // If we are here, it means it started with # but wasn't caught by skip_comment because it looked like include/involve 
-        // OR it's a comment that somehow slipped through? 
-        // The only way to get here is if lexer_skip_comment returned because it saw #include or #involve.
-        // But wait, lexer_skip_comment checks #include/#involve and returns if found.
-        // If it returns, lexer_next_token proceeds to see '#'.
-        // So this logic handles the token generation.
-        
+        // Handle unknown directives or comments that weren't caught by lexer_skip_comment
+        // This can happen when lexer_skip_comment sees #include/#involve but they don't match exactly
         return token_create(TOKEN_ERROR, "Unknown directive or invalid comment", line, col);
     }
     case '=':
+        // Handle assignment and comparison operators
         if (lexer_peek(lexer) == '=')
         {
-            lexer_advance(lexer);
+            lexer_advance(lexer); // consume second '='
             return token_create(TOKEN_EQ, "==", line, col);
         }
         if (lexer_peek(lexer) == '>')
         {
-            lexer_advance(lexer);
+            lexer_advance(lexer); // consume '>'
             return token_create(TOKEN_ARROW, "=>", line, col);
         }
         return token_create(TOKEN_ASSIGN, "=", line, col);
@@ -358,17 +517,18 @@ Token *lexer_next_token(Lexer *lexer)
         }
         return token_create(TOKEN_ADD, "+", line, col);
     case '-':
+        // Handle subtraction, decrement, and compound assignment operators
         if (lexer_peek(lexer) == '=')
         {
-            lexer_advance(lexer);
+            lexer_advance(lexer); // consume '='
             return token_create(TOKEN_MINUS_ASSIGN, "-=", line, col);
         }
         if (lexer_peek(lexer) == '-')
         {
-            lexer_advance(lexer);
+            lexer_advance(lexer); // consume second '-'
             return token_create(TOKEN_DEC, "--", line, col);
         }
-        return token_create(TOKEN_SUB, "-", line, col); // never knew programming a language would be this hard
+        return token_create(TOKEN_SUB, "-", line, col);
     case '*':
         if (lexer_peek(lexer) == '=')
         {
@@ -464,3 +624,5 @@ Token *lexer_next_token(Lexer *lexer)
 
     return token_create(TOKEN_ERROR, NULL, line, col);
 }
+
+// END OF lexer.c
