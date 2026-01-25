@@ -12,4 +12,5 @@ obj/
 
 # other
 logs/
+*.log
 TODO.md
